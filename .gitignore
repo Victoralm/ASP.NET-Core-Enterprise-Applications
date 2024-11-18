@@ -1,4 +1,3 @@
-/.vs
-/NerdStoreEnterprise/.vs
-/NerdStoreEnterprise/src/*/*/bin/
-/NerdStoreEnterprise/src/*/*/obj/
+**/.vs
+**/bin/
+**/obj/
