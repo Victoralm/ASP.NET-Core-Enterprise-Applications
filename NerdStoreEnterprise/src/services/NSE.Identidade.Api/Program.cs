@@ -33,6 +33,7 @@ builder.Services.AddDbContext<AppDbContext>();
 // Adding the Identity
 builder.Services.AddDefaultIdentity<IdentityUser>()
                 .AddRoles<IdentityRole>()
+                .AddErrorDescriber<IdentityMensagensPortugues>()
                 .AddEntityFrameworkStores<AppDbContext>()
                 .AddDefaultTokenProviders();
 #endregion
