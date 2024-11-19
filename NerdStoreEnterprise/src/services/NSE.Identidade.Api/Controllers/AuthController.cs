@@ -72,45 +72,60 @@ namespace NSE.Identidade.API.Controllers
 
         private async Task<UsuarioRespostaLogin> GerarJwt(string email)
         {
-
             var user = await _userManager.FindByEmailAsync(email);
             var claims = await _userManager.GetClaimsAsync(user);
-            //var userRoles = await _userManager.GetRolesAsync(user);
-            List<string> userRoles = (List<string>)await _userManager.GetRolesAsync(user);
+
+            var identityClaims = await ObterClaimsUsuario(claims, user);
+            var encodedToken = CodificarToken(identityClaims);
+
+            return ObterRespostaToken(encodedToken, user, claims);
+        }
+
+        private async Task<ClaimsIdentity> ObterClaimsUsuario(ICollection<Claim> claims, IdentityUser user)
+        {
+            //Pegando as roles do usuário
+            var userRoles = await _userManager.GetRolesAsync(user);
 
             // Gerando novas Claims
             claims.Add(new Claim(JwtRegisteredClaimNames.Sub, user.Id));
             claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
-            claims.Add(new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())); // Criando um Id para o Token https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.7
-            claims.Add(new Claim(JwtRegisteredClaimNames.Nbf, ToUnixEpochDate(DateTime.UtcNow).ToString())); // Definindo quando o Token irá expirar (Token ñ é aceito para datas inferiores a esta definida, geralmente, a msm data de criação) https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.5
-            claims.Add(new Claim(JwtRegisteredClaimNames.Iat, ToUnixEpochDate(DateTime.UtcNow).ToString(), ClaimValueTypes.Integer64)); // Definindo quando o Token foi criado https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.6
+            claims.Add(new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()));
+            claims.Add(new Claim(JwtRegisteredClaimNames.Nbf, ToUnixEpochDate(DateTime.UtcNow).ToString()));
+            claims.Add(new Claim(JwtRegisteredClaimNames.Iat, ToUnixEpochDate(DateTime.UtcNow).ToString(), ClaimValueTypes.Integer64));
 
-            // Adicionando cada uma das Roles do usuário ao Token
-            //foreach (var role in userRoles)
-            //{
-            //    claims.Add(new Claim("role", role));
-            //}
-            userRoles.ForEach(role => claims.Add(new Claim("role", role)));
+            // Adicionando as Roles do usuário a lista claims
+            foreach (var userRole in userRoles)
+            {
+                claims.Add(new Claim("role", userRole));
+            }
 
+            // Adicionando a lista claims ao identityClaims
             var identityClaims = new ClaimsIdentity();
-            identityClaims.AddClaims(claims); // Adicionando as claims de usuário e as novas claims ao Identity
+            identityClaims.AddClaims(claims);
 
+            return identityClaims;
+        }
+
+        private string CodificarToken(ClaimsIdentity identityClaims)
+        {
             // Gerando o manipulador do Token
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.ASCII.GetBytes(_appSettings.Secret);
-
             var token = tokenHandler.CreateToken(new SecurityTokenDescriptor
             {
                 Issuer = _appSettings.Emissor,
                 Audience = _appSettings.ValidoEm,
                 Subject = identityClaims,
                 Expires = DateTime.UtcNow.AddHours(_appSettings.ExpiracaoHoras),
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature),
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             });
 
-            var encodedToken = tokenHandler.WriteToken(token);
+            return tokenHandler.WriteToken(token);
+        }
 
-            var response = new UsuarioRespostaLogin
+        private UsuarioRespostaLogin ObterRespostaToken(string encodedToken, IdentityUser user, IEnumerable<Claim> claims)
+        {
+            return new UsuarioRespostaLogin
             {
                 AccessToken = encodedToken,
                 ExpiresIn = TimeSpan.FromHours(_appSettings.ExpiracaoHoras).TotalSeconds,
@@ -118,11 +133,9 @@ namespace NSE.Identidade.API.Controllers
                 {
                     Id = user.Id,
                     Email = user.Email,
-                    Claims = claims.Select(c => new UsuarioClaim { Type = c.Type, Value = c.Value }),
+                    Claims = claims.Select(c => new UsuarioClaim { Type = c.Type, Value = c.Value })
                 }
             };
-
-            return response;
         }
 
         private static long ToUnixEpochDate(DateTime date) => (long)Math.Round((date.ToUniversalTime() - new DateTimeOffset(1970, 1, 1, 0, 0, 0, TimeSpan.Zero)).TotalSeconds);

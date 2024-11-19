@@ -23,8 +23,9 @@ namespace NSE.Identidade.API.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            var env = Configuration.GetSection("envVariables:env");
             //Configure default schema
-            modelBuilder.HasDefaultSchema("dev");
+            modelBuilder.HasDefaultSchema(env.Value);
             base.OnModelCreating(modelBuilder);
         }
     }
